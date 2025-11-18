@@ -23,8 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	cloudprovidertest "k8s.io/cloud-provider/test"
@@ -70,51 +68,10 @@ var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 		It("should delete node from API server when not in cloud provider", func() {
 			ctx := context.Background()
 
-			// Get a random ready schedulable node to test with
-			nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred(), "Failed to list nodes")
-			Expect(nodes.Items).NotTo(BeEmpty(), "No nodes available for testing")
-
-			// Find a schedulable node
-			var testNode *v1.Node
-			for i := range nodes.Items {
-				node := &nodes.Items[i]
-				if !node.Spec.Unschedulable {
-					// Check if node is ready
-					for _, condition := range node.Status.Conditions {
-						if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
-							testNode = node
-							break
-						}
-					}
-					if testNode != nil {
-						break
-					}
-				}
-			}
-
-			Expect(testNode).NotTo(BeNil(), "No ready schedulable nodes found")
-
-			klog.Infof("Testing with node: %s", testNode.Name)
-			originalNodeCount := len(nodes.Items)
-
-			// Delete the node on the cloud provider (terminate the EC2 instance)
-			err = nodeTester.DeleteNodeOnCloudProvider(testNode)
-			Expect(err).NotTo(HaveOccurred(), "Failed to delete node on cloud provider")
-
-			// Wait for the node to be removed from the API server
-			// The cloud controller manager should detect the missing instance and delete the node
-			Eventually(func() bool {
-				_, err := clientset.CoreV1().Nodes().Get(ctx, testNode.Name, metav1.GetOptions{})
-				return err != nil // Node should be gone
-			}, "5m", "10s").Should(BeTrue(), "Node was not deleted from API server")
-
-			// Verify node count decreased
-			updatedNodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred(), "Failed to list nodes after deletion")
-			Expect(len(updatedNodes.Items)).To(Equal(originalNodeCount-1), "Node count did not decrease by 1")
-
-			klog.Infof("Successfully verified node %s was deleted from API server", testNode.Name)
+			// Call the generic test implementation from CCMNodeTester
+			// This delegates cloud-specific operations to our AWSNodeTester
+			err := nodeTester.TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx, clientset)
+			Expect(err).NotTo(HaveOccurred(), "Node deletion test failed")
 		})
 	})
 })

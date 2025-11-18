@@ -23,12 +23,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	cloudprovidertest "k8s.io/cloud-provider/test"
+	k8sexternal "k8s.io/kubernetes/test/e2e/cloud/external"
 )
 
 // AWSNodeTester implements the NodeTester interface for AWS cloud provider
+// by embedding the generic CCMNodeTester and providing AWS-specific implementations
 type AWSNodeTester struct {
+	*k8sexternal.CCMNodeTester
 	ec2Client *ec2.Client
 }
 
@@ -40,18 +42,17 @@ func NewAWSNodeTester(ctx context.Context) (cloudprovidertest.NodeTester, error)
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	return &AWSNodeTester{
-		ec2Client: ec2.NewFromConfig(cfg),
-	}, nil
-}
+	// Create the AWS node tester with embedded CCMNodeTester
+	awsTester := &AWSNodeTester{
+		CCMNodeTester: k8sexternal.NewCCMNodeTester().(*k8sexternal.CCMNodeTester),
+		ec2Client:     ec2.NewFromConfig(cfg),
+	}
 
-// TestNodeDeletedOnAPIServerWhenNotInCloudProvider tests that a node
-// should be deleted on API server if it doesn't exist in the cloud provider
-// This delegates to the generic CCM test implementation
-func (a *AWSNodeTester) TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx context.Context, c kubernetes.Interface) error {
-	// This method signature needs to match the interface, but the actual test
-	// logic will be handled by the imported test from k8s.io/kubernetes/test/e2e/cloud/external
-	return fmt.Errorf("this method should not be called directly - use the test suite")
+	// Set the AWS tester as the implementation for the embedded CCMNodeTester
+	// This allows the generic test logic to call our AWS-specific DeleteNodeOnCloudProvider
+	awsTester.CCMNodeTester.SetNodeTester(awsTester)
+
+	return awsTester, nil
 }
 
 // DeleteNodeOnCloudProvider deletes the specified node from AWS by terminating the EC2 instance
