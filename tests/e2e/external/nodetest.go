@@ -19,18 +19,20 @@ package external
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	cloudprovidertest "k8s.io/cloud-provider/test"
-	k8sexternal "k8s.io/kubernetes/test/e2e/cloud/external"
+	"k8s.io/klog/v2"
 )
 
 // AWSNodeTester implements the NodeTester interface for AWS cloud provider
-// by embedding the generic CCMNodeTester and providing AWS-specific implementations
 type AWSNodeTester struct {
-	*k8sexternal.CCMNodeTester
 	ec2Client *ec2.Client
 }
 
@@ -42,17 +44,87 @@ func NewAWSNodeTester(ctx context.Context) (cloudprovidertest.NodeTester, error)
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	// Create the AWS node tester with embedded CCMNodeTester
-	awsTester := &AWSNodeTester{
-		CCMNodeTester: k8sexternal.NewCCMNodeTester().(*k8sexternal.CCMNodeTester),
-		ec2Client:     ec2.NewFromConfig(cfg),
+	return &AWSNodeTester{
+		ec2Client: ec2.NewFromConfig(cfg),
+	}, nil
+}
+
+// TestNodeDeletedOnAPIServerWhenNotInCloudProvider tests that a node
+// should be deleted on API server if it doesn't exist in the cloud provider.
+// This implements the test orchestration logic from the NodeTester interface.
+func (a *AWSNodeTester) TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx context.Context, c kubernetes.Interface) error {
+	// Get list of nodes
+	nodes, err := c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes: %w", err)
 	}
 
-	// Set the AWS tester as the implementation for the embedded CCMNodeTester
-	// This allows the generic test logic to call our AWS-specific DeleteNodeOnCloudProvider
-	awsTester.CCMNodeTester.SetNodeTester(awsTester)
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes available for testing")
+	}
 
-	return awsTester, nil
+	// Find a ready, schedulable node
+	var testNode *v1.Node
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		if !node.Spec.Unschedulable {
+			// Check if node is ready
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+					testNode = node
+					break
+				}
+			}
+			if testNode != nil {
+				break
+			}
+		}
+	}
+
+	if testNode == nil {
+		return fmt.Errorf("no ready schedulable nodes found")
+	}
+
+	klog.Infof("Testing with node: %s", testNode.Name)
+	originalNodeCount := len(nodes.Items)
+
+	// Delete the node on the cloud provider (terminate the EC2 instance)
+	if err := a.DeleteNodeOnCloudProvider(testNode); err != nil {
+		return fmt.Errorf("failed to delete node on cloud provider: %w", err)
+	}
+
+	klog.Infof("Deleted node %s from cloud provider, waiting for API server to remove it...", testNode.Name)
+
+	// Wait for the node to be removed from the API server
+	// The cloud controller manager should detect the missing instance and delete the node
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		_, err := c.CoreV1().Nodes().Get(ctx, testNode.Name, metav1.GetOptions{})
+		if err != nil {
+			// Node is gone - this is what we expect
+			klog.Infof("Node %s has been removed from API server", testNode.Name)
+			return true, nil
+		}
+		klog.Infof("Node %s still exists, waiting...", testNode.Name)
+		return false, nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("node %s was not deleted from API server within timeout: %w", testNode.Name, err)
+	}
+
+	// Verify node count decreased
+	updatedNodes, err := c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes after deletion: %w", err)
+	}
+
+	if len(updatedNodes.Items) != originalNodeCount-1 {
+		return fmt.Errorf("expected node count to decrease by 1 (from %d to %d), but got %d",
+			originalNodeCount, originalNodeCount-1, len(updatedNodes.Items))
+	}
+
+	klog.Infof("Successfully verified node %s was deleted from API server", testNode.Name)
+	return nil
 }
 
 // DeleteNodeOnCloudProvider deletes the specified node from AWS by terminating the EC2 instance

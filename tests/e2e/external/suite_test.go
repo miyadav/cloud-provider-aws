@@ -68,8 +68,8 @@ var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 		It("should delete node from API server when not in cloud provider", func() {
 			ctx := context.Background()
 
-			// Call the generic test implementation from CCMNodeTester
-			// This delegates cloud-specific operations to our AWSNodeTester
+			// Call the interface method which contains the full test orchestration logic
+			// This properly uses the NodeTester interface from k8s.io/cloud-provider/test
 			err := nodeTester.TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "Node deletion test failed")
 		})

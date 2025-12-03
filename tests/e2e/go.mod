@@ -14,7 +14,7 @@ require (
 	k8s.io/client-go v0.34.0
 	k8s.io/cloud-provider v0.33.0
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubernetes v1.34.0
+	k8s.io/kubernetes v1.34.2
 	k8s.io/pod-security-admission v0.34.0
 )
 
@@ -71,7 +71,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cobra v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -128,7 +127,7 @@ replace (
 	k8s.io/apiserver => k8s.io/apiserver v0.34.0
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.34.0
 	k8s.io/client-go => k8s.io/client-go v0.34.0
-	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251105172615-4ed806d881b9
+	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251118114913-c9c666159642
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.0
 	k8s.io/code-generator => k8s.io/code-generator v0.34.0
 	k8s.io/component-base => k8s.io/component-base v0.34.0
@@ -144,7 +143,6 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.34.0
 	k8s.io/kubectl => k8s.io/kubectl v0.34.0
 	k8s.io/kubelet => k8s.io/kubelet v0.34.0
-	k8s.io/kubernetes => github.com/miyadav/kubernetes v0.0.0-20251118114913-c9c666159642
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.34.0
 	k8s.io/metrics => k8s.io/metrics v0.34.0
 	k8s.io/mount-utils => k8s.io/mount-utils v0.34.0
