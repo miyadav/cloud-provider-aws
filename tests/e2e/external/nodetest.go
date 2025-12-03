@@ -63,10 +63,17 @@ func (a *AWSNodeTester) TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx con
 		return fmt.Errorf("no nodes available for testing")
 	}
 
-	// Find a ready, schedulable node
+	// Find a ready, schedulable worker node (skip master/control-plane nodes)
 	var testNode *v1.Node
 	for i := range nodes.Items {
 		node := &nodes.Items[i]
+
+		// Skip master/control-plane nodes
+		if isMasterNode(node) {
+			klog.Infof("Skipping master/control-plane node: %s", node.Name)
+			continue
+		}
+
 		if !node.Spec.Unschedulable {
 			// Check if node is ready
 			for _, condition := range node.Status.Conditions {
@@ -82,7 +89,7 @@ func (a *AWSNodeTester) TestNodeDeletedOnAPIServerWhenNotInCloudProvider(ctx con
 	}
 
 	if testNode == nil {
-		return fmt.Errorf("no ready schedulable nodes found")
+		return fmt.Errorf("no ready schedulable worker nodes found (master/control-plane nodes are excluded)")
 	}
 
 	klog.Infof("Testing with node: %s", testNode.Name)
@@ -154,6 +161,32 @@ func (a *AWSNodeTester) DeleteNodeOnCloudProvider(node *v1.Node) error {
 	}
 
 	return nil
+}
+
+// isMasterNode checks if a node is a master/control-plane node
+// by looking for common master node labels
+func isMasterNode(node *v1.Node) bool {
+	// Check for master/control-plane labels
+	masterLabels := []string{
+		"node-role.kubernetes.io/master",
+		"node-role.kubernetes.io/control-plane",
+		"node.kubernetes.io/master",
+	}
+
+	for _, label := range masterLabels {
+		if _, exists := node.Labels[label]; exists {
+			return true
+		}
+	}
+
+	// Also check the node-role label value
+	if role, exists := node.Labels["kubernetes.io/role"]; exists {
+		if role == "master" || role == "control-plane" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // parseAWSProviderID extracts the instance ID from an AWS provider ID
