@@ -12,7 +12,6 @@ require (
 	k8s.io/api v0.34.0
 	k8s.io/apimachinery v0.34.0
 	k8s.io/client-go v0.34.0
-	k8s.io/cloud-provider v0.33.0
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubernetes v1.34.2
 	k8s.io/pod-security-admission v0.34.0
@@ -106,6 +105,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.0.0 // indirect
 	k8s.io/apiserver v0.34.0 // indirect
+	k8s.io/cloud-provider v0.33.0 // indirect
 	k8s.io/component-base v0.34.0 // indirect
 	k8s.io/component-helpers v0.34.0 // indirect
 	k8s.io/controller-manager v0.34.0 // indirect
@@ -127,7 +127,7 @@ replace (
 	k8s.io/apiserver => k8s.io/apiserver v0.34.0
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.34.0
 	k8s.io/client-go => k8s.io/client-go v0.34.0
-	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251118114913-c9c666159642
+	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251209125111-5d621e8a0867
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.0
 	k8s.io/code-generator => k8s.io/code-generator v0.34.0
 	k8s.io/component-base => k8s.io/component-base v0.34.0
