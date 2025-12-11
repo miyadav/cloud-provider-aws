@@ -27,27 +27,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/test/e2e/cloud/external"
 )
 
-// ZoneTester defines the interface for testing cloud provider zone functionality.
-// This interface will be provided by k8s.io/cloud-provider/test once the dependency is updated.
-type ZoneTester interface {
-	TestGetZone(ctx context.Context, c kubernetes.Interface) error
-	TestGetZoneByProviderID(ctx context.Context, c kubernetes.Interface) error
-	TestGetZoneByNodeName(ctx context.Context, c kubernetes.Interface) error
-}
-
-// AWSZoneTester implements the ZoneTester interface for AWS cloud provider
+// AWSZoneTester implements the ZonesTester interface for AWS cloud provider
+// It embeds CCMZonesTester to use the default test implementation and only
+// implements cloud-specific operations via ZoneVerifier
 type AWSZoneTester struct {
+	*external.CCMZonesTester
 	ec2Client *ec2.Client
 	region    string
 }
 
-// Ensure AWSZoneTester implements ZoneTester interface
-var _ ZoneTester = &AWSZoneTester{}
+// Ensure AWSZoneTester implements ZonesTester and ZoneVerifier interfaces
+var _ external.ZonesTester = &AWSZoneTester{}
+var _ external.ZoneVerifier = &AWSZoneTester{}
 
 // NewAWSZoneTester creates a new AWSZoneTester instance
-func NewAWSZoneTester(ctx context.Context) (ZoneTester, error) {
+func NewAWSZoneTester(ctx context.Context) (external.ZonesTester, error) {
 	return newAWSZoneTesterWithRegion(ctx, "")
 }
 
@@ -71,155 +68,49 @@ func newAWSZoneTesterWithRegion(ctx context.Context, region string) (*AWSZoneTes
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	return &AWSZoneTester{
-		ec2Client: ec2.NewFromConfig(cfg),
-		region:    cfg.Region,
-	}, nil
+	ccmTester := external.NewCCMZonesTester()
+	// Type assert to get the concrete type
+	ccmZonesTester, ok := ccmTester.(*external.CCMZonesTester)
+	if !ok {
+		return nil, fmt.Errorf("failed to get CCMZonesTester instance")
+	}
+
+	awsTester := &AWSZoneTester{
+		CCMZonesTester: ccmZonesTester,
+		ec2Client:      ec2.NewFromConfig(cfg),
+		region:         cfg.Region,
+	}
+	// Set the verifier so CCMZonesTester can call our ZoneVerifier methods
+	awsTester.SetZoneVerifier(awsTester)
+	return awsTester, nil
 }
 
-// TestGetZone verifies that the cloud provider correctly returns zone information
-// for the current instance using instance metadata.
-func (a *AWSZoneTester) TestGetZone(ctx context.Context, c kubernetes.Interface) error {
-	// Get list of nodes to verify zone information
-	nodes, err := c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+// The following test methods are now provided by CCMZonesTester:
+// - TestGetZone
+// - TestGetZoneByProviderID
+// - TestGetZoneByNodeName
+// We only need to implement ZoneVerifier methods below.
+
+// GetZoneByProviderID retrieves the zone from the cloud provider using the provider ID.
+// This implements the ZoneVerifier interface for cloud-specific zone retrieval
+func (a *AWSZoneTester) GetZoneByProviderID(ctx context.Context, providerID string) (string, error) {
+	instanceID, err := parseAWSProviderID(providerID)
 	if err != nil {
-		return fmt.Errorf("failed to list nodes: %w", err)
+		return "", fmt.Errorf("failed to parse providerID: %w", err)
 	}
-
-	if len(nodes.Items) == 0 {
-		return fmt.Errorf("no nodes available for testing")
-	}
-
-	// Get available zones in the region
-	availableZones, err := a.getAvailableZones(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get available zones: %w", err)
-	}
-
-	klog.Infof("Available zones in region %s: %v", a.region, availableZones)
-
-	for _, node := range nodes.Items {
-		// Check zone label
-		zone, hasZone := node.Labels["topology.kubernetes.io/zone"]
-		if !hasZone {
-			// Try legacy label
-			zone, hasZone = node.Labels["failure-domain.beta.kubernetes.io/zone"]
-		}
-
-		if !hasZone {
-			klog.Warningf("Node %s does not have zone label", node.Name)
-			continue
-		}
-
-		// Verify zone is in the list of available zones
-		if !contains(availableZones, zone) {
-			return fmt.Errorf("node %s has invalid zone %s (not in available zones)", node.Name, zone)
-		}
-
-		klog.Infof("Verified zone for node %s: %s", node.Name, zone)
-	}
-
-	klog.Infof("Successfully verified zone information for all nodes")
-	return nil
+	return a.getInstanceZone(ctx, instanceID)
 }
 
-// TestGetZoneByProviderID verifies that the cloud provider correctly returns zone
-// information when given a provider ID.
-func (a *AWSZoneTester) TestGetZoneByProviderID(ctx context.Context, c kubernetes.Interface) error {
-	// Get list of nodes
-	nodes, err := c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list nodes: %w", err)
-	}
-
-	if len(nodes.Items) == 0 {
-		return fmt.Errorf("no nodes available for testing")
-	}
-
-	for _, node := range nodes.Items {
-		providerID := node.Spec.ProviderID
-		if providerID == "" {
-			klog.Warningf("Skipping node %s: no providerID", node.Name)
-			continue
-		}
-
-		// Parse instance ID from provider ID
-		instanceID, err := parseAWSProviderID(providerID)
-		if err != nil {
-			return fmt.Errorf("failed to parse providerID for node %s: %w", node.Name, err)
-		}
-
-		// Get zone from AWS
-		awsZone, err := a.getInstanceZone(ctx, instanceID)
-		if err != nil {
-			return fmt.Errorf("failed to get zone for instance %s: %w", instanceID, err)
-		}
-
-		// Get zone from node label
-		nodeZone, hasZone := node.Labels["topology.kubernetes.io/zone"]
-		if !hasZone {
-			nodeZone, hasZone = node.Labels["failure-domain.beta.kubernetes.io/zone"]
-		}
-
-		if hasZone && awsZone != nodeZone {
-			return fmt.Errorf("zone mismatch for node %s: AWS=%s, label=%s", node.Name, awsZone, nodeZone)
-		}
-
-		klog.Infof("Verified zone by providerID for node %s: %s", node.Name, awsZone)
-	}
-
-	klog.Infof("Successfully verified GetZoneByProviderID for all nodes")
-	return nil
+// GetZoneByInstanceID retrieves the zone from the cloud provider using the instance ID.
+// This implements the ZoneVerifier interface for cloud-specific zone retrieval
+func (a *AWSZoneTester) GetZoneByInstanceID(ctx context.Context, instanceID string) (string, error) {
+	return a.getInstanceZone(ctx, instanceID)
 }
 
-// TestGetZoneByNodeName verifies that the cloud provider correctly returns zone
-// information when given a node name.
-func (a *AWSZoneTester) TestGetZoneByNodeName(ctx context.Context, c kubernetes.Interface) error {
-	// Get list of nodes
-	nodes, err := c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list nodes: %w", err)
-	}
-
-	if len(nodes.Items) == 0 {
-		return fmt.Errorf("no nodes available for testing")
-	}
-
-	for _, node := range nodes.Items {
-		// Get the node's provider ID to find the instance
-		providerID := node.Spec.ProviderID
-		if providerID == "" {
-			klog.Warningf("Skipping node %s: no providerID", node.Name)
-			continue
-		}
-
-		instanceID, err := parseAWSProviderID(providerID)
-		if err != nil {
-			return fmt.Errorf("failed to parse providerID for node %s: %w", node.Name, err)
-		}
-
-		// Try to find instance by private DNS name (common node naming pattern)
-		// AWS nodes are often named by their private DNS name
-		awsZone, err := a.getInstanceZone(ctx, instanceID)
-		if err != nil {
-			return fmt.Errorf("failed to get zone for node %s (instance %s): %w", node.Name, instanceID, err)
-		}
-
-		// Verify zone label matches
-		nodeZone, hasZone := node.Labels["topology.kubernetes.io/zone"]
-		if !hasZone {
-			nodeZone, hasZone = node.Labels["failure-domain.beta.kubernetes.io/zone"]
-		}
-
-		if hasZone && awsZone != nodeZone {
-			return fmt.Errorf("zone mismatch for node %s: AWS=%s, label=%s", node.Name, awsZone, nodeZone)
-		}
-
-		klog.Infof("Verified zone by node name for %s: %s", node.Name, awsZone)
-	}
-
-	klog.Infof("Successfully verified GetZoneByNodeName for all nodes")
-	return nil
+// GetAvailableZones returns the list of available zones in the region.
+// This implements the ZoneVerifier interface for cloud-specific zone retrieval
+func (a *AWSZoneTester) GetAvailableZones(ctx context.Context) ([]string, error) {
+	return a.getAvailableZones(ctx)
 }
 
 // TestZoneIDLabel verifies that nodes have the AWS-specific zone-id topology label
