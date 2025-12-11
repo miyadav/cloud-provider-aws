@@ -47,7 +47,6 @@ require (
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -70,6 +69,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/cobra v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -85,17 +85,17 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/mod v0.28.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/term v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a // indirect
 	google.golang.org/grpc v1.72.2 // indirect
@@ -121,18 +121,18 @@ require (
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.34.0
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.34.0
-	k8s.io/apimachinery => k8s.io/apimachinery v0.34.0
-	k8s.io/apiserver => k8s.io/apiserver v0.34.0
+	k8s.io/api => github.com/miyadav/kubernetes/staging/src/k8s.io/api v0.0.0-20251211102757-a1addd271b08
+	k8s.io/apiextensions-apiserver => github.com/miyadav/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20251211102757-a1addd271b08
+	k8s.io/apimachinery => github.com/miyadav/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20251211102757-a1addd271b08
+	k8s.io/apiserver => github.com/miyadav/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20251211102757-a1addd271b08
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.34.0
-	k8s.io/client-go => k8s.io/client-go v0.34.0
-	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251209125111-5d621e8a0867
+	k8s.io/client-go => github.com/miyadav/kubernetes/staging/src/k8s.io/client-go v0.0.0-20251211102757-a1addd271b08
+	k8s.io/cloud-provider => github.com/miyadav/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-20251211102757-a1addd271b08
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.0
 	k8s.io/code-generator => k8s.io/code-generator v0.34.0
-	k8s.io/component-base => k8s.io/component-base v0.34.0
-	k8s.io/component-helpers => k8s.io/component-helpers v0.34.0
-	k8s.io/controller-manager => k8s.io/controller-manager v0.34.0
+	k8s.io/component-base => github.com/miyadav/kubernetes/staging/src/k8s.io/component-base v0.0.0-20251211102757-a1addd271b08
+	k8s.io/component-helpers => github.com/miyadav/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-20251211102757-a1addd271b08
+	k8s.io/controller-manager => github.com/miyadav/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-20251211102757-a1addd271b08
 	k8s.io/cri-api => k8s.io/cri-api v0.34.0
 	k8s.io/cri-client => k8s.io/cri-client v0.34.0
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.34.0
@@ -143,11 +143,12 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.34.0
 	k8s.io/kubectl => k8s.io/kubectl v0.34.0
 	k8s.io/kubelet => k8s.io/kubelet v0.34.0
+	k8s.io/kubernetes => github.com/miyadav/kubernetes v0.0.0-20251211112535-2eac1280847f
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.34.0
 	k8s.io/metrics => k8s.io/metrics v0.34.0
 	k8s.io/mount-utils => k8s.io/mount-utils v0.34.0
 	k8s.io/node-api => k8s.io/node-api v0.34.0
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.34.0
+	k8s.io/pod-security-admission => github.com/miyadav/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-20251211102757-a1addd271b08
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.34.0
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.34.0
 	k8s.io/sample-controller => k8s.io/sample-controller v0.34.0
