@@ -31,12 +31,10 @@ import (
 )
 
 var (
-	kubeconfig         string
-	awsRegion          string
-	nodeTester         *AWSNodeTester
-	loadBalancerTester *AWSLoadBalancerTester
-	zoneTester         *AWSZoneTester
-	clientset          *kubernetes.Clientset
+	kubeconfig string
+	awsRegion  string
+	awsTester  *AWSTester
+	clientset  *kubernetes.Clientset
 )
 
 func init() {
@@ -108,27 +106,19 @@ var _ = BeforeSuite(func() {
 		// If detection fails, we'll let the AWS SDK try to get it from environment/config
 	}
 
-	// Create AWS node tester (implements NodeTester interface from k8s.io/kubernetes/test/e2e/cloud/external)
+	// Create AWS tester factory (implements Tester interface from k8s.io/kubernetes/test/e2e/cloud/external)
 	// Note: Cloud provider annotation should be set by the framework in the Kubernetes fork
-	var ntErr error
-	nodeTester, ntErr = newAWSNodeTesterWithRegion(ctx, detectedRegion)
-	Expect(ntErr).NotTo(HaveOccurred(), "Failed to create AWS node tester")
-
-	// Create AWS load balancer tester
-	var lbtErr error
-	loadBalancerTester, lbtErr = newAWSLoadBalancerTesterWithRegion(ctx, detectedRegion)
-	Expect(lbtErr).NotTo(HaveOccurred(), "Failed to create AWS load balancer tester")
-
-	// Create AWS zone tester
-	var ztErr error
-	zoneTester, ztErr = newAWSZoneTesterWithRegion(ctx, detectedRegion)
-	Expect(ztErr).NotTo(HaveOccurred(), "Failed to create AWS zone tester")
+	awsTester = NewAWSTester(ctx, detectedRegion)
 })
 
 var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 	Context("Node lifecycle", func() {
 		It("should delete node from API server when not in cloud provider", func() {
 			ctx := context.Background()
+
+			// Get node tester from factory
+			nodeTester, ok := awsTester.NodeTester()
+			Expect(ok).To(BeTrue(), "Failed to get NodeTester from factory")
 
 			// Call the interface method which contains the full test orchestration logic
 			// This properly uses the NodeTester interface from k8s.io/kubernetes/test/e2e/cloud/external
@@ -142,8 +132,12 @@ var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 		It("should verify all nodes exist as instances in AWS", func() {
 			ctx := context.Background()
 
+			// Get instances v2 tester from factory (AWSNodeTester implements InstancesV2Tester)
+			instancesV2Tester, ok := awsTester.InstancesV2Tester()
+			Expect(ok).To(BeTrue(), "Failed to get InstancesV2Tester from factory")
+
 			// Verify that all Kubernetes nodes correspond to existing EC2 instances
-			result, err := nodeTester.TestInstanceExists(ctx, clientset)
+			result, err := instancesV2Tester.TestInstanceExists(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "Instance existence test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
 		})
@@ -153,8 +147,12 @@ var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 		It("should correctly detect running vs shutdown instances", func() {
 			ctx := context.Background()
 
+			// Get instances v2 tester from factory (AWSNodeTester implements InstancesV2Tester)
+			instancesV2Tester, ok := awsTester.InstancesV2Tester()
+			Expect(ok).To(BeTrue(), "Failed to get InstancesV2Tester from factory")
+
 			// Verify that running nodes are not reported as shutdown
-			result, err := nodeTester.TestInstanceShutdown(ctx, clientset)
+			result, err := instancesV2Tester.TestInstanceShutdown(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "Instance shutdown test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
 		})
@@ -164,8 +162,12 @@ var _ = Describe("AWS Cloud Controller Manager Node Tests", func() {
 		It("should correctly report instance metadata", func() {
 			ctx := context.Background()
 
+			// Get instances v2 tester from factory (AWSNodeTester implements InstancesV2Tester)
+			instancesV2Tester, ok := awsTester.InstancesV2Tester()
+			Expect(ok).To(BeTrue(), "Failed to get InstancesV2Tester from factory")
+
 			// Verify instance type, zone, region, and addresses match AWS
-			result, err := nodeTester.TestInstanceMetadata(ctx, clientset)
+			result, err := instancesV2Tester.TestInstanceMetadata(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "Instance metadata test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
 		})
@@ -177,6 +179,10 @@ var _ = Describe("AWS Cloud Controller Manager LoadBalancer Tests", func() {
 		It("should create a load balancer for a LoadBalancer type service", func() {
 			ctx := context.Background()
 
+			// Get load balancer tester from factory
+			loadBalancerTester, ok := awsTester.LoadBalancerTester()
+			Expect(ok).To(BeTrue(), "Failed to get LoadBalancerTester from factory")
+
 			result, err := loadBalancerTester.TestEnsureLoadBalancer(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "EnsureLoadBalancer test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
@@ -186,6 +192,10 @@ var _ = Describe("AWS Cloud Controller Manager LoadBalancer Tests", func() {
 	Context("LoadBalancer updates", func() {
 		It("should update load balancer when service is modified", func() {
 			ctx := context.Background()
+
+			// Get load balancer tester from factory
+			loadBalancerTester, ok := awsTester.LoadBalancerTester()
+			Expect(ok).To(BeTrue(), "Failed to get LoadBalancerTester from factory")
 
 			result, err := loadBalancerTester.TestUpdateLoadBalancer(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "UpdateLoadBalancer test failed")
@@ -197,6 +207,10 @@ var _ = Describe("AWS Cloud Controller Manager LoadBalancer Tests", func() {
 		It("should delete load balancer when service is deleted", func() {
 			ctx := context.Background()
 
+			// Get load balancer tester from factory
+			loadBalancerTester, ok := awsTester.LoadBalancerTester()
+			Expect(ok).To(BeTrue(), "Failed to get LoadBalancerTester from factory")
+
 			result, err := loadBalancerTester.TestEnsureLoadBalancerDeleted(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "EnsureLoadBalancerDeleted test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
@@ -206,6 +220,10 @@ var _ = Describe("AWS Cloud Controller Manager LoadBalancer Tests", func() {
 	Context("LoadBalancer status", func() {
 		It("should correctly retrieve load balancer status", func() {
 			ctx := context.Background()
+
+			// Get load balancer tester from factory
+			loadBalancerTester, ok := awsTester.LoadBalancerTester()
+			Expect(ok).To(BeTrue(), "Failed to get LoadBalancerTester from factory")
 
 			result, err := loadBalancerTester.TestGetLoadBalancer(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "GetLoadBalancer test failed")
@@ -219,6 +237,10 @@ var _ = Describe("AWS Cloud Controller Manager Zone Tests", func() {
 		It("should correctly report zone information for nodes", func() {
 			ctx := context.Background()
 
+			// Get zones tester from factory
+			zoneTester, ok := awsTester.ZonesTester()
+			Expect(ok).To(BeTrue(), "Failed to get ZonesTester from factory")
+
 			result, err := zoneTester.TestGetZone(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "GetZone test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
@@ -228,6 +250,10 @@ var _ = Describe("AWS Cloud Controller Manager Zone Tests", func() {
 	Context("Zone by provider ID", func() {
 		It("should correctly return zone by provider ID", func() {
 			ctx := context.Background()
+
+			// Get zones tester from factory
+			zoneTester, ok := awsTester.ZonesTester()
+			Expect(ok).To(BeTrue(), "Failed to get ZonesTester from factory")
 
 			result, err := zoneTester.TestGetZoneByProviderID(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "GetZoneByProviderID test failed")
@@ -239,6 +265,10 @@ var _ = Describe("AWS Cloud Controller Manager Zone Tests", func() {
 		It("should correctly return zone by node name", func() {
 			ctx := context.Background()
 
+			// Get zones tester from factory
+			zoneTester, ok := awsTester.ZonesTester()
+			Expect(ok).To(BeTrue(), "Failed to get ZonesTester from factory")
+
 			result, err := zoneTester.TestGetZoneByNodeName(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "GetZoneByNodeName test failed")
 			Expect(result.Success).To(BeTrue(), result.Message)
@@ -249,10 +279,16 @@ var _ = Describe("AWS Cloud Controller Manager Zone Tests", func() {
 		It("should have correct zone-id topology labels on nodes", func() {
 			ctx := context.Background()
 
-			// Use the AWS-specific test for zone ID labels
+			// Get zones tester from factory
+			zoneTester, ok := awsTester.ZonesTester()
+			Expect(ok).To(BeTrue(), "Failed to get ZonesTester from factory")
+
+			// Type assert to concrete type to access AWS-specific method
 			// Note: TestZoneIDLabel is AWS-specific and not part of the ZonesTester interface
 			// This test remains as a custom AWS test
-			err := zoneTester.TestZoneIDLabel(ctx, clientset)
+			awsZoneTester, ok := zoneTester.(*AWSZoneTester)
+			Expect(ok).To(BeTrue(), "Failed to type assert ZonesTester to AWSZoneTester")
+			err := awsZoneTester.TestZoneIDLabel(ctx, clientset)
 			Expect(err).NotTo(HaveOccurred(), "Zone ID label test failed")
 		})
 	})
