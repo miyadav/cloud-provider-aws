@@ -70,6 +70,7 @@ The test suite (`ccmtests_test.go`) uses Ginkgo/Gomega framework with Kubernetes
 Tests automatically discover nodes in the cluster, extract provider IDs, create region-specific EC2 clients, and validate all NodeLifecycle methods against real AWS API responses.
 
 ## Usage
+cd tests/e2e
 
 ```bash
 # Run tests with kubeconfig
