@@ -74,7 +74,7 @@ cd tests/e2e
 
 ```bash
 # Run tests with kubeconfig
-go test ./tests/e2e/external/
+go test ./external/
 
 Or use -
 ginkgo  -vv --progress --timeout=30m ./external/... 
