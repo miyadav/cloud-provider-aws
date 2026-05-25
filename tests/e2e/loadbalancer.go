@@ -28,8 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
+	cloudprovidertesting "k8s.io/cloud-provider/testing"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2eservice "k8s.io/kubernetes/test/e2e/framework/service"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	admissionapi "k8s.io/pod-security-admission/api"
 
@@ -66,6 +68,7 @@ var _ = Describe("[cloud-provider-aws-e2e] loadbalancer", func() {
 	)
 
 	BeforeEach(func() {
+		e2eskipper.SkipUnlessCloudCapability(cloudprovidertesting.CapLoadBalancer)
 		cs = f.ClientSet
 		ns = f.Namespace
 	})

@@ -25,14 +25,17 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	cloudprovidertesting "k8s.io/cloud-provider/testing"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 )
 
 var _ = Describe("[cloud-provider-aws-e2e] nodes", func() {
 	f := framework.NewDefaultFramework("cloud-provider-aws")
 
 	It("should set zone-id topology label", func(ctx context.Context) {
+		e2eskipper.SkipUnlessCloudCapability(cloudprovidertesting.CapTopologyLabels)
 		framework.ExpectNoError(e2enode.WaitForAllNodesSchedulable(ctx, f.ClientSet, 10*time.Minute))
 
 		nodeList, err := e2enode.GetReadySchedulableNodes(ctx, f.ClientSet)
@@ -49,6 +52,7 @@ var _ = Describe("[cloud-provider-aws-e2e] nodes", func() {
 	})
 
 	It("should label nodes with topology network info if instance is supported", func(ctx context.Context) {
+		e2eskipper.SkipUnlessCloudCapability(cloudprovidertesting.CapTopologyLabels)
 		framework.ExpectNoError(e2enode.WaitForAllNodesSchedulable(ctx, f.ClientSet, 10*time.Minute))
 		nodeList, err := e2enode.GetReadySchedulableNodes(ctx, f.ClientSet)
 		framework.ExpectNoError(err)
